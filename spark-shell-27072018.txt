@@ -1,0 +1,100 @@
+javaeecub@cluster-263e-m:~$ spark-shell
+Setting default log level to "WARN".
+To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
+Spark context Web UI available at http://10.142.0.3:4040
+Spark context available as 'sc' (master = yarn, app id = application_1532629127205_0002).
+Spark session available as 'spark'.
+Welcome to
+      ____              __
+     / __/__  ___ _____/ /__
+    _\ \/ _ \/ _ `/ __/  '_/
+   /___/ .__/\_,_/_/ /_/\_\   version 2.2.1
+      /_/
+         
+Using Scala version 2.11.8 (OpenJDK 64-Bit Server VM, Java 1.8.0_171)
+Type in expressions to have them evaluated.
+Type :help for more information.
+
+// Word Count using filter & reduceByKey on RDD
+
+scala> val dfsFilename = "gs://storeone/wordcount.txt"
+dfsFilename: String = gs://storeone/wordcount.txt
+
+scala> val readFileRDD = spark.sparkContext.textFile(dfsFilename)
+readFileRDD: org.apache.spark.rdd.RDD[String] = gs://storeone/wordcount.txt MapPartitionsRDD[1] at textFile at <console>:25
+
+scala> val wcounts1 = readFileRDD.flatMap(line=>line.split(" ")).map(word=>(word, 1)).reduceByKey(_ + _)
+wcounts1: org.apache.spark.rdd.RDD[(String, Int)] = ShuffledRDD[4] at reduceByKey at <console>:27
+
+scala> wcounts1.collect.foreach(println)
+(Using,11)                                                                      
+(Word,4)
+(DataFrames,8)
+(Spark,10)
+(Count,2)
+(for,6)
+scala> wcounts1.saveAsTextFile("gs://storeone/wordcount")
+
+
+// Word Count Using groupBy on RDD
+
+scala> val readFileRDD = spark.sparkContext.textFile(dfsFilename)
+readFileRDD: org.apache.spark.rdd.RDD[String] = gs://storeone/wordcount.txt MapPartitionsRDD[10] at textFile at <console>:25
+scala> val wcounts2 = readFileRDD.flatMap(line=>line.split(" ")).map( w => (w,1)).groupByKey().map(ws => (ws._1,ws._2.size))
+wcounts2: org.apache.spark.rdd.RDD[(String, Int)] = MapPartitionsRDD[14] at map at <console>:27
+scala> wcounts2.collect.foreach(println)
+(Using,11)
+(Word,4)
+(DataFrames,8)
+(Spark,10)
+(Count,2)
+(for,6)
+	
+
+// spark-shell -i WordCountscala.scala
+
+
+//Word Count Using Dataframes, Rows and groupBy
+
+scala> val readFileDF = spark.sparkContext.textFile(dfsFilename)
+readFileDF: org.apache.spark.rdd.RDD[String] = gs://storeone/wordcount.txt MapPartitionsRDD[16] at textFile at <console>:25
+
+scala> val wordsDF = readFileDF.flatMap(_.split(" ")).toDF
+wordsDF: org.apache.spark.sql.DataFrame = [value: string]
+
+scala> val wcounts3 = wordsDF.groupBy("Value").count()
+wcounts3: org.apache.spark.sql.DataFrame = [Value: string, count: bigint]
+
+scala> wcounts3.collect.foreach(println)
+[Using,11]                                                                      
+[for,6]
+[DataFrames,8]
+[Spark,10]
+[Word,4]
+[Count,2]
+
+
+val wcounts3 = wordsDF.groupBy("Value").count()
+
+
+//Word Count Using Dataset
+
+scala> val readFileDS = spark.read.textFile(dfsFilename)
+readFileDS: org.apache.spark.sql.Dataset[String] = [value: string]
+
+scala> val wcounts4 = readFileDS.flatMap(_.split(" ")).groupBy("Value").count()
+wcounts4: org.apache.spark.sql.DataFrame = [Value: string, count: bigint]
+
+scala> wcounts4.show()
++----------+-----+                                                              
+|     Value|count|
++----------+-----+
+|     Using|   11|
+|       for|    6|
+|DataFrames|    8|
+|     Spark|   10|
+|      Word|    4|
+|     Count|    2|
++----------+-----+
+
+https://github.com/abbas-taher/the-7-ways-wordcount-apache-spark-snippets
